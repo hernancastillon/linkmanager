@@ -1,0 +1,7 @@
+[build]
+  publish = "."
+  command = "echo 'Sin paso de build — solo se instalan dependencias de las funciones'"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"

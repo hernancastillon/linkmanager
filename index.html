@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LinkManager OG — Panel de control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#12161c;
+  --bg-grid: rgba(255,255,255,.025);
+  --surface:#1a2029;
+  --surface-2:#212938;
+  --border:#2a3341;
+  --text:#edeff2;
+  --text-dim:#8c97a8;
+  --text-faint:#5b6675;
+  --accent:#ffb238;
+  --accent-dim:#8a6a2f;
+  --link:#4fb6c9;
+  --danger:#e5566b;
+  --ok:#3ddc97;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --display: 'Space Grotesk', ui-sans-serif, sans-serif;
+  --body: 'Inter', ui-sans-serif, sans-serif;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:linear-gradient(var(--bg-grid) 1px, transparent 1px) 0 0/100% 32px, var(--bg);
+  color:var(--text);font-family:var(--body);min-height:100vh;-webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--accent);color:#12161c;}
+a{color:var(--link);}
+button{font-family:inherit;}
+input,textarea{font-family:inherit;}
+
+.console-bar{
+  display:flex;align-items:center;justify-content:space-between;padding:14px 24px;
+  border-bottom:1px solid var(--border);background:rgba(26,32,41,.7);backdrop-filter:blur(6px);
+  position:sticky;top:0;z-index:50;
+}
+.brand{display:flex;align-items:center;gap:10px;}
+.brand .mark{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,var(--accent),#c97f1c);
+  display:flex;align-items:center;justify-content:center;font-family:var(--display);font-weight:700;color:#12161c;font-size:14px;}
+.brand .name{font-family:var(--display);font-weight:700;font-size:16px;letter-spacing:.2px;}
+.brand .sub{color:var(--text-faint);font-size:11px;font-family:var(--mono);letter-spacing:.5px;}
+.status-pill{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;letter-spacing:.6px;
+  color:var(--text-dim);border:1px solid var(--border);padding:6px 12px;border-radius:999px;}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(61,220,151,.15);animation:pulse 2.2s infinite;}
+.status-dot.off{background:var(--danger);box-shadow:0 0 0 3px rgba(229,86,107,.15);}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.bar-right{display:flex;align-items:center;gap:10px;}
+
+.btn{border:1px solid var(--border);background:var(--surface-2);color:var(--text);padding:9px 14px;border-radius:8px;
+  font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:.15s border-color,.15s transform;}
+.btn:hover{border-color:var(--text-faint);}
+.btn:active{transform:scale(.97);}
+.btn-accent{background:var(--accent);border-color:var(--accent);color:#12161c;font-weight:600;}
+.btn-accent:hover{border-color:var(--accent);filter:brightness(1.08);}
+.btn-danger{color:var(--danger);}
+.btn-danger:hover{border-color:var(--danger);}
+.btn-ghost{background:transparent;}
+.btn-sm{padding:6px 10px;font-size:12px;}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+
+.gate{min-height:calc(100vh - 60px);display:flex;align-items:center;justify-content:center;padding:24px;}
+.gate-card{width:100%;max-width:380px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:32px 28px;}
+.gate-card .eyebrow{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:1.5px;margin-bottom:8px;}
+.gate-card h1{font-family:var(--display);font-size:22px;margin:0 0 6px;}
+.gate-card p.desc{color:var(--text-dim);font-size:13px;line-height:1.5;margin:0 0 22px;}
+.field{margin-bottom:16px;}
+.field label{display:block;font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:500;}
+.field input,.field textarea{width:100%;background:var(--surface-2);border:1px solid var(--border);color:var(--text);
+  padding:10px 12px;border-radius:8px;font-size:14px;outline:none;transition:.15s border-color;}
+.field input:focus,.field textarea:focus{border-color:var(--accent);}
+.field .hint{font-size:11px;color:var(--text-faint);margin-top:5px;}
+.gate-error{color:var(--danger);font-size:12px;margin:-8px 0 14px;min-height:14px;}
+
+.app{display:none;}
+.app.active{display:block;}
+.layout{display:grid;grid-template-columns:1fr 380px;gap:0;max-width:1400px;margin:0 auto;}
+@media (max-width:1000px){.layout{grid-template-columns:1fr;}}
+.panel{padding:28px;}
+.panel-right{border-left:1px solid var(--border);background:rgba(26,32,41,.35);position:sticky;top:60px;
+  align-self:start;max-height:calc(100vh - 60px);overflow-y:auto;}
+@media (max-width:1000px){.panel-right{position:static;border-left:none;border-top:1px solid var(--border);max-height:none;}}
+
+.section-title{font-family:var(--display);font-size:13px;font-weight:600;color:var(--text-dim);letter-spacing:1px;
+  text-transform:uppercase;margin:0 0 16px;display:flex;align-items:center;gap:8px;}
+.section-title .num{font-family:var(--mono);color:var(--accent);}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:20px;}
+.card h2{font-family:var(--display);font-size:16px;margin:0 0 4px;}
+.card .card-sub{color:var(--text-faint);font-size:12px;margin:0 0 18px;}
+.form-actions{display:flex;gap:10px;margin-top:18px;}
+.char-count{font-size:11px;color:var(--text-faint);text-align:right;margin-top:4px;font-family:var(--mono);}
+.char-count.warn{color:var(--accent);}
+.slug-input{display:flex;align-items:stretch;}
+.slug-prefix{background:var(--surface-2);border:1px solid var(--border);border-right:none;padding:10px 10px 10px 12px;
+  border-radius:8px 0 0 8px;color:var(--text-faint);font-family:var(--mono);font-size:13px;display:flex;align-items:center;white-space:nowrap;}
+.slug-input input{border-radius:0 8px 8px 0;font-family:var(--mono);}
+.slug-input input:disabled{opacity:.6;}
+
+.link-row{border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:10px;
+  display:flex;gap:14px;align-items:flex-start;background:var(--surface);}
+.link-thumb{width:52px;height:52px;border-radius:7px;background:var(--surface-2);flex-shrink:0;
+  background-size:cover;background-position:center;border:1px solid var(--border);}
+.link-info{flex:1;min-width:0;}
+.link-title{font-weight:600;font-size:13.5px;margin:0 0 3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.link-slug{font-family:var(--mono);font-size:11.5px;color:var(--accent);margin:0 0 3px;}
+.link-dest{font-size:11.5px;color:var(--text-faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0 0 3px;}
+.link-meta{font-size:11px;color:var(--text-faint);font-family:var(--mono);}
+.link-actions{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;max-width:110px;}
+.empty-state{text-align:center;padding:40px 20px;color:var(--text-faint);border:1px dashed var(--border);border-radius:12px;}
+.empty-state .glyph{font-size:26px;margin-bottom:10px;opacity:.5;}
+.empty-state p{font-size:13px;margin:0;}
+
+.preview-label{font-family:var(--mono);font-size:10.5px;color:var(--text-faint);letter-spacing:1px;text-transform:uppercase;
+  margin:0 0 8px;display:flex;align-items:center;gap:6px;}
+.preview-label .platform-dot{width:6px;height:6px;border-radius:50%;}
+.oc-card{background:#fff;color:#1c1c1c;border-radius:8px;overflow:hidden;border:1px solid #dcdfe3;font-family:Helvetica,Arial,sans-serif;margin-bottom:22px;}
+.oc-img{width:100%;aspect-ratio:1.91/1;background:#eee;background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;color:#b6bac0;font-size:11px;}
+.oc-body{padding:10px 12px;}
+.oc-domain{font-size:11px;color:#65676b;text-transform:uppercase;letter-spacing:.3px;margin:0 0 2px;}
+.oc-title{font-size:14px;font-weight:600;margin:0 0 3px;line-height:1.3;}
+.oc-desc{font-size:12.5px;color:#65676b;margin:0;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.xc-card{background:#fff;color:#0f1419;border-radius:14px;overflow:hidden;border:1px solid #cfd9de;font-family:Helvetica,Arial,sans-serif;margin-bottom:22px;}
+.xc-img{width:100%;aspect-ratio:1.91/1;background:#eee;background-size:cover;background-position:center;}
+.xc-body{padding:9px 12px;}
+.xc-title{font-size:13.5px;font-weight:600;margin:0 0 2px;line-height:1.3;}
+.xc-desc{font-size:12px;color:#536471;margin:0 0 3px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.xc-domain{font-size:12px;color:#536471;}
+.wa-wrap{background:#e5ddd3;border-radius:10px;padding:14px;margin-bottom:22px;}
+.wa-bubble{background:#fff;border-radius:6px 10px 10px 10px;padding:6px;max-width:260px;box-shadow:0 1px 1px rgba(0,0,0,.1);}
+.wa-img{width:100%;aspect-ratio:1.91/1;border-radius:5px 5px 0 0;background:#eee;background-size:cover;background-position:center;}
+.wa-body{padding:6px 4px 2px;}
+.wa-title{font-size:13px;font-weight:600;color:#111b21;margin:0 0 2px;line-height:1.25;}
+.wa-desc{font-size:11.5px;color:#667781;margin:0 0 2px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.wa-domain{font-size:11px;color:#667781;text-transform:lowercase;}
+.wa-link{font-size:13px;color:#111b21;margin-top:6px;padding:0 4px 2px;}
+
+.help-box{border:1px solid var(--border);border-radius:10px;padding:16px 18px;background:var(--surface);}
+.help-box summary{cursor:pointer;font-family:var(--display);font-weight:600;font-size:14px;list-style:none;display:flex;align-items:center;justify-content:space-between;}
+.help-box summary::-webkit-details-marker{display:none;}
+.help-box summary .chev{color:var(--text-faint);transition:.15s transform;}
+.help-box[open] summary .chev{transform:rotate(90deg);}
+.help-box .body{margin-top:14px;font-size:13px;line-height:1.65;color:var(--text-dim);}
+.help-box .body h3{color:var(--text);font-size:13px;margin:16px 0 6px;font-family:var(--display);}
+.help-box .body h3:first-child{margin-top:0;}
+.help-box .body code{background:var(--surface-2);padding:2px 6px;border-radius:4px;font-family:var(--mono);font-size:12px;color:var(--accent);}
+.help-box .body ol,.help-box .body ul{padding-left:20px;margin:6px 0;}
+.help-box .body li{margin-bottom:4px;}
+.notice{border:1px solid var(--accent-dim);background:rgba(255,178,56,.08);border-radius:10px;padding:14px 16px;
+  font-size:12.5px;line-height:1.55;color:var(--text-dim);margin-bottom:20px;}
+.notice strong{color:var(--accent);}
+.notice.danger{border-color:var(--danger);background:rgba(229,86,107,.08);}
+
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface-2);
+  border:1px solid var(--border);color:var(--text);padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;
+  pointer-events:none;transition:.2s;z-index:100;font-family:var(--mono);max-width:80vw;text-align:center;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.footer-note{color:var(--text-faint);font-size:11px;font-family:var(--mono);text-align:center;padding:26px 20px 40px;}
+.spin-sm{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.25);border-top-color:currentColor;
+  border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div class="console-bar">
+  <div class="brand">
+    <div class="mark">L/</div>
+    <div>
+      <div class="name">LinkManager OG</div>
+      <div class="sub">CONSOLA DE REDIRECCIONES · EN VIVO</div>
+    </div>
+  </div>
+  <div class="bar-right">
+    <div class="status-pill" id="statusPill"><span class="status-dot" id="statusDot"></span><span id="statusText">CONECTANDO…</span></div>
+    <button class="btn btn-ghost btn-sm" id="logoutBtn" style="display:none;">Cerrar sesión</button>
+  </div>
+</div>
+
+<div class="gate" id="loginGate" style="display:none;">
+  <div class="gate-card">
+    <div class="eyebrow">ACCESO INTERNO</div>
+    <h1>Iniciar sesión</h1>
+    <p class="desc">Panel de administración de LinkManager OG. La contraseña es la que configuraste como <code>ADMIN_PASSWORD</code> en las variables de entorno de Netlify.</p>
+    <div class="field">
+      <label for="loginPass">Contraseña</label>
+      <input type="password" id="loginPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')login()">
+    </div>
+    <div class="gate-error" id="loginError"></div>
+    <button class="btn btn-accent" id="loginBtn" style="width:100%;justify-content:center;" onclick="login()">Entrar</button>
+  </div>
+</div>
+
+<div class="app" id="app">
+  <div class="layout">
+    <div class="panel">
+
+      <div class="notice">
+        <strong>Ahora es en vivo:</strong> al guardar un enlace queda publicado de inmediato en <code id="noticeDomain">tu dominio</code> — no hay que descargar ni volver a subir archivos. Los datos se guardan en Netlify Blobs, ligado a este sitio.
+      </div>
+
+      <div class="section-title"><span class="num">01/</span> Nueva redirección</div>
+      <div class="card">
+        <h2 id="formHeading">Crear enlace</h2>
+        <p class="card-sub">Define a dónde apunta y qué verá la gente al compartirlo.</p>
+
+        <div class="field">
+          <label for="fTitulo">Título (og:title)</label>
+          <input type="text" id="fTitulo" maxlength="70" placeholder="Ej. 3 hábitos que cambian tu semana" oninput="onTituloInput()">
+          <div class="char-count" id="tituloCount">0 / 70</div>
+        </div>
+
+        <div class="field">
+          <label for="fSlug">Slug (parte de la URL corta)</label>
+          <div class="slug-input">
+            <span class="slug-prefix">/l/</span>
+            <input type="text" id="fSlug" placeholder="habitos-semana" oninput="onSlugInput()">
+          </div>
+          <div class="hint" id="slugHint">Se autogenera desde el título. Puedes editarlo — solo minúsculas, números y guiones.</div>
+        </div>
+
+        <div class="field">
+          <label for="fDestino">URL de destino</label>
+          <input type="url" id="fDestino" placeholder="https://ejemplo.com/pagina-final" oninput="renderPreview()">
+        </div>
+
+        <div class="field">
+          <label for="fDescripcion">Descripción (og:description)</label>
+          <textarea id="fDescripcion" rows="3" maxlength="160" placeholder="Una o dos frases que inviten al clic." oninput="onDescInput()"></textarea>
+          <div class="char-count" id="descCount">0 / 160</div>
+        </div>
+
+        <div class="field">
+          <label for="fImagen">Imagen (og:image) — URL pública</label>
+          <input type="url" id="fImagen" placeholder="https://ejemplo.com/imagen.jpg" oninput="renderPreview()">
+          <div class="hint">Sube la imagen a donde ya alojas tus medios y pega el enlace directo. Ideal 1200×630px.</div>
+        </div>
+
+        <div class="field">
+          <label for="fSitio">Nombre del sitio (og:site_name) — opcional</label>
+          <input type="text" id="fSitio" placeholder="Ej. El Sabio Urbano" oninput="renderPreview()">
+        </div>
+
+        <div class="form-actions">
+          <button class="btn btn-accent" id="saveBtn" onclick="saveLink()">Publicar enlace</button>
+          <button class="btn btn-ghost" id="cancelEditBtn" style="display:none;" onclick="cancelEdit()">Cancelar edición</button>
+        </div>
+      </div>
+
+      <div class="section-title"><span class="num">02/</span> Enlaces publicados</div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <button class="btn btn-sm" onclick="exportBackup()">Exportar respaldo (.json)</button>
+        <button class="btn btn-sm" onclick="loadLinks()">Actualizar lista</button>
+      </div>
+      <div id="linkList"><div class="empty-state"><div class="glyph">◌</div><p>Cargando enlaces…</p></div></div>
+
+      <div class="section-title" style="margin-top:8px;"><span class="num">03/</span> Ayuda</div>
+      <details class="help-box" open>
+        <summary>Cómo está publicado esto <span class="chev">›</span></summary>
+        <div class="body">
+          <h3>Backend real, sin archivos que subir a mano</h3>
+          <p>Cada enlace vive en Netlify Blobs. Al guardarlo, una función en <code>/l/:slug</code> genera las etiquetas Open Graph y redirige al instante — para cualquier persona o cualquier rastreador (Facebook, X, WhatsApp) que visite esa URL.</p>
+          <h3>Si necesitas mover o restaurar tus enlaces</h3>
+          <p>Usa "Exportar respaldo (.json)" periódicamente. Si algún día migras de sitio, puedes volver a crear los enlaces desde ese respaldo.</p>
+          <h3>Sobre la contraseña</h3>
+          <p>Se valida en el servidor contra la variable <code>ADMIN_PASSWORD</code> de Netlify — cámbiala ahí cuando quieras, sin tocar el código.</p>
+        </div>
+      </details>
+
+    </div>
+
+    <div class="panel panel-right">
+      <div class="section-title" style="margin-top:6px;">Vista previa al compartir</div>
+
+      <div class="preview-label"><span class="platform-dot" style="background:#1877f2;"></span> Facebook / Messenger</div>
+      <div class="oc-card">
+        <div class="oc-img" id="pvImgFb">Sin imagen</div>
+        <div class="oc-body">
+          <p class="oc-domain" id="pvDomainFb">tu-sitio.netlify.app</p>
+          <p class="oc-title" id="pvTitleFb">Título de tu enlace</p>
+          <p class="oc-desc" id="pvDescFb">La descripción aparecerá aquí conforme escribas.</p>
+        </div>
+      </div>
+
+      <div class="preview-label"><span class="platform-dot" style="background:#0f1419;"></span> X (Twitter)</div>
+      <div class="xc-card">
+        <div class="xc-img" id="pvImgX"></div>
+        <div class="xc-body">
+          <p class="xc-title" id="pvTitleX">Título de tu enlace</p>
+          <p class="xc-desc" id="pvDescX">La descripción aparecerá aquí conforme escribas.</p>
+          <p class="xc-domain" id="pvDomainX">tu-sitio.netlify.app</p>
+        </div>
+      </div>
+
+      <div class="preview-label"><span class="platform-dot" style="background:#25d366;"></span> WhatsApp</div>
+      <div class="wa-wrap">
+        <div class="wa-bubble">
+          <div class="wa-img" id="pvImgWa"></div>
+          <div class="wa-body">
+            <p class="wa-title" id="pvTitleWa">Título de tu enlace</p>
+            <p class="wa-desc" id="pvDescWa">La descripción aparecerá aquí conforme escribas.</p>
+            <p class="wa-domain" id="pvDomainWa">tu-sitio.netlify.app</p>
+          </div>
+          <p class="wa-link">¿Vas a la reunión de mañana? Mira esto 👀</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="footer-note">LINKMANAGER OG · BACKEND EN NETLIFY FUNCTIONS + BLOBS</p>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SS_PW = 'lmog_pw';
+let links = [];
+let editingSlug = null;
+let slugManuallyEdited = false;
+
+function $(id){ return document.getElementById(id); }
+function toast(msg){
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._tm); toast._tm = setTimeout(()=>t.classList.remove('show'), 2400);
+}
+function escapeHtml(str){
+  return String(str||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function slugify(str){
+  return String(str||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9\s-]/g,'').trim().replace(/\s+/g,'-').replace(/-+/g,'-').slice(0,60);
+}
+function currentDomain(){ return window.location.host; }
+function pw(){ return sessionStorage.getItem(SS_PW) || ''; }
+
+async function api(path, opts={}){
+  const res = await fetch(path, {
+    ...opts,
+    headers: { 'content-type':'application/json', 'x-admin-password': pw(), ...(opts.headers||{}) }
+  });
+  if(res.status === 401){ sessionStorage.removeItem(SS_PW); boot(); throw new Error('No autorizado'); }
+  let data = null;
+  try{ data = await res.json(); }catch(e){}
+  if(!res.ok){ throw new Error((data && data.error) || ('Error ' + res.status)); }
+  return data;
+}
+
+/* ---------- login ---------- */
+async function login(){
+  const val = $('loginPass').value;
+  const err = $('loginError'); err.textContent = '';
+  const btn = $('loginBtn'); btn.disabled = true; btn.innerHTML = '<span class="spin-sm"></span> Verificando…';
+  try{
+    const res = await fetch('/api/login', {
+      method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ password: val })
+    });
+    const data = await res.json();
+    if(data.ok){
+      sessionStorage.setItem(SS_PW, val);
+      boot();
+    } else {
+      err.textContent = data.error || 'Contraseña incorrecta.';
+    }
+  }catch(e){
+    err.textContent = 'No se pudo conectar con el servidor.';
+  }finally{
+    btn.disabled = false; btn.textContent = 'Entrar';
+  }
+}
+function logout(){ sessionStorage.removeItem(SS_PW); boot(); }
+
+/* ---------- arranque ---------- */
+function boot(){
+  $('loginGate').style.display = 'none';
+  $('app').classList.remove('active');
+  $('logoutBtn').style.display = 'none';
+
+  if(!pw()){
+    $('loginGate').style.display = 'flex';
+    return;
+  }
+  $('app').classList.add('active');
+  $('logoutBtn').style.display = 'inline-flex';
+  $('noticeDomain').textContent = currentDomain();
+  renderPreview();
+  loadLinks();
+}
+
+/* ---------- formulario ---------- */
+function onTituloInput(){
+  const v = $('fTitulo').value;
+  $('tituloCount').textContent = v.length + ' / 70';
+  $('tituloCount').classList.toggle('warn', v.length > 60);
+  if(!slugManuallyEdited || $('fSlug').value.trim()===''){ $('fSlug').value = slugify(v); }
+  renderPreview();
+}
+function onSlugInput(){ slugManuallyEdited = true; renderPreview(); }
+function onDescInput(){
+  const v = $('fDescripcion').value;
+  $('descCount').textContent = v.length + ' / 160';
+  $('descCount').classList.toggle('warn', v.length > 140);
+  renderPreview();
+}
+function getFormData(){
+  return {
+    titulo: $('fTitulo').value.trim(),
+    slug: slugify($('fSlug').value) || slugify($('fTitulo').value),
+    destino: $('fDestino').value.trim(),
+    descripcion: $('fDescripcion').value.trim(),
+    imagen: $('fImagen').value.trim(),
+    sitio: $('fSitio').value.trim()
+  };
+}
+function clearForm(){
+  ['fTitulo','fSlug','fDestino','fDescripcion','fImagen','fSitio'].forEach(id=>$(id).value='');
+  $('tituloCount').textContent = '0 / 70';
+  $('descCount').textContent = '0 / 160';
+  $('fSlug').disabled = false;
+  $('slugHint').textContent = 'Se autogenera desde el título. Puedes editarlo — solo minúsculas, números y guiones.';
+  slugManuallyEdited = false; editingSlug = null;
+  $('formHeading').textContent = 'Crear enlace';
+  $('saveBtn').textContent = 'Publicar enlace';
+  $('cancelEditBtn').style.display = 'none';
+  renderPreview();
+}
+function cancelEdit(){ clearForm(); }
+
+/* ---------- vista previa ---------- */
+function renderPreview(){
+  const d = getFormData();
+  const domain = currentDomain();
+  const title = d.titulo || 'Título de tu enlace';
+  const desc = d.descripcion || 'La descripción aparecerá aquí conforme escribas.';
+  const img = d.imagen;
+  ['Fb','X','Wa'].forEach(sfx=>{
+    $('pvTitle'+sfx).textContent = title;
+    $('pvDesc'+sfx).textContent = desc;
+    const imgEl = $('pvImg'+sfx);
+    if(img){ imgEl.style.backgroundImage = `url("${img.replace(/"/g,'')}")`; imgEl.textContent=''; }
+    else { imgEl.style.backgroundImage = 'none'; imgEl.textContent = sfx==='Fb' ? 'Sin imagen' : ''; }
+  });
+  $('pvDomainFb').textContent = domain;
+  $('pvDomainX').textContent = domain;
+  $('pvDomainWa').textContent = domain;
+}
+
+/* ---------- guardar / editar / eliminar (vía API) ---------- */
+async function saveLink(){
+  const d = getFormData();
+  if(!d.titulo){ toast('Falta el título.'); return; }
+  if(!d.destino){ toast('Falta la URL de destino.'); return; }
+  if(!/^https?:\/\//i.test(d.destino)){ toast('La URL de destino debe empezar con http:// o https://'); return; }
+  if(!d.slug){ toast('El slug no puede quedar vacío.'); return; }
+
+  const btn = $('saveBtn');
+  btn.disabled = true; const original = btn.textContent; btn.innerHTML = '<span class="spin-sm"></span> Publicando…';
+
+  try{
+    if(editingSlug){
+      await api('/api/links/' + encodeURIComponent(editingSlug), { method:'PUT', body: JSON.stringify(d) });
+      toast('Enlace actualizado — los cambios ya están en línea.');
+    } else {
+      await api('/api/links', { method:'POST', body: JSON.stringify(d) });
+      toast('Enlace publicado en /l/' + d.slug);
+    }
+    clearForm();
+    await loadLinks();
+  }catch(e){
+    toast(e.message || 'No se pudo guardar el enlace.');
+  }finally{
+    btn.disabled = false; btn.textContent = original;
+  }
+}
+
+function editLink(slug){
+  const l = links.find(x=>x.slug===slug);
+  if(!l) return;
+  editingSlug = slug;
+  $('fTitulo').value = l.titulo;
+  $('fSlug').value = l.slug;
+  $('fSlug').disabled = true;
+  $('slugHint').textContent = 'El slug no se puede cambiar al editar (cambiaría la URL ya compartida). Crea un enlace nuevo si necesitas otro.';
+  $('fDestino').value = l.destino;
+  $('fDescripcion').value = l.descripcion;
+  $('fImagen').value = l.imagen;
+  $('fSitio').value = l.sitio || '';
+  slugManuallyEdited = true;
+  onTituloInput(); onDescInput();
+  $('formHeading').textContent = 'Editar enlace';
+  $('saveBtn').textContent = 'Guardar cambios';
+  $('cancelEditBtn').style.display = 'inline-flex';
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+async function deleteLink(slug){
+  const l = links.find(x=>x.slug===slug);
+  if(!l) return;
+  if(!confirm(`Eliminar "${l.titulo}"? La URL /l/${slug} dejará de funcionar de inmediato.`)) return;
+  try{
+    await api('/api/links/' + encodeURIComponent(slug), { method:'DELETE' });
+    toast('Enlace eliminado.');
+    await loadLinks();
+  }catch(e){
+    toast(e.message || 'No se pudo eliminar.');
+  }
+}
+
+function copyShortUrl(slug){
+  const url = `${window.location.protocol}//${currentDomain()}/l/${slug}`;
+  navigator.clipboard.writeText(url).then(()=>toast('Enlace copiado: ' + url));
+}
+
+/* ---------- lista ---------- */
+async function loadLinks(){
+  try{
+    links = await api('/api/links');
+    renderLinks();
+    updateStatusPill(true);
+  }catch(e){
+    if(e.message !== 'No autorizado'){ toast(e.message || 'No se pudo cargar la lista.'); }
+    updateStatusPill(false);
+  }
+}
+
+function renderLinks(){
+  const wrap = $('linkList');
+  if(links.length === 0){
+    wrap.innerHTML = `<div class="empty-state"><div class="glyph">◌</div><p>Aún no has publicado ninguna redirección.<br>Llena el formulario de arriba para empezar.</p></div>`;
+    return;
+  }
+  wrap.innerHTML = links.map(l => `
+    <div class="link-row">
+      <div class="link-thumb" style="${l.imagen ? `background-image:url('${l.imagen.replace(/'/g,'')}')` : ''}"></div>
+      <div class="link-info">
+        <p class="link-title">${escapeHtml(l.titulo)}</p>
+        <p class="link-slug">/l/${escapeHtml(l.slug)}</p>
+        <p class="link-dest">→ ${escapeHtml(l.destino)}</p>
+        <p class="link-meta">${l.visitas || 0} visita${l.visitas===1?'':'s'}</p>
+      </div>
+      <div class="link-actions">
+        <button class="btn btn-sm btn-ghost" onclick="copyShortUrl('${l.slug}')" title="Copiar URL corta">Copiar</button>
+        <button class="btn btn-sm btn-ghost" onclick="editLink('${l.slug}')" title="Editar">Editar</button>
+        <button class="btn btn-sm btn-ghost btn-danger" onclick="deleteLink('${l.slug}')" title="Eliminar">Eliminar</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function updateStatusPill(ok){
+  $('statusDot').classList.toggle('off', !ok);
+  $('statusText').textContent = ok
+    ? `${links.length} ENLACE${links.length===1?'':'S'} EN LÍNEA`
+    : 'SIN CONEXIÓN AL BACKEND';
+}
+
+/* ---------- respaldo ---------- */
+function exportBackup(){
+  if(links.length === 0){ toast('No hay enlaces que exportar.'); return; }
+  const blob = new Blob([JSON.stringify(links, null, 2)], { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'linkmanager-og-respaldo.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Respaldo exportado.');
+}
+
+/* ---------- eventos ---------- */
+$('logoutBtn').addEventListener('click', logout);
+boot();
+</script>
+</body>
+</html>

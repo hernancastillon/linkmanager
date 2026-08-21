@@ -1,0 +1,9 @@
+{
+  "name": "linkmanager-og",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Panel de redirecciones con etiquetas Open Graph dinámicas, sobre Netlify Functions + Netlify Blobs.",
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}
