@@ -6,6 +6,8 @@
 <title>LinkManager OG — Panel de control</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 <style>
 :root{
   --bg:#12161c;
@@ -165,6 +167,17 @@ input,textarea{font-family:inherit;}
 .spin-sm{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.25);border-top-color:currentColor;
   border-radius:50%;animation:spin .7s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------- recortador de imagen ---------- */
+.modal-overlay{position:fixed;inset:0;background:rgba(10,12,16,.72);display:none;align-items:center;
+  justify-content:center;z-index:200;padding:20px;}
+.modal-box{width:100%;max-width:600px;background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  padding:22px;display:flex;flex-direction:column;gap:14px;}
+.modal-box h3{font-family:var(--display);font-size:16px;margin:0;}
+.modal-box .modal-hint{color:var(--text-faint);font-size:12px;margin:-8px 0 0;}
+.crop-area{width:100%;height:340px;background:#0d1015;border-radius:8px;overflow:hidden;}
+.crop-area img{max-width:100%;display:block;}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;}
 </style>
 </head>
 <body>
@@ -247,7 +260,7 @@ input,textarea{font-family:inherit;}
             <button type="button" class="btn btn-sm btn-ghost" id="removeImgBtn" style="display:none;" onclick="removeImage()">Quitar</button>
           </div>
           <input type="url" id="fImagen" placeholder="…o pega una URL de imagen que ya tengas en otro lugar" oninput="onImagenUrlInput()">
-          <div class="hint">Subir el archivo la aloja en tu propio sitio y detecta el tamaño real automáticamente. Si en cambio pegas una URL externa, usa una imagen de 1200×630px — no podemos detectar su tamaño real.</div>
+          <div class="hint">Al subir un archivo se abre un recortador para ajustarlo a 1200×630 antes de publicarlo. Si en cambio pegas una URL externa, usa ya una imagen de ese tamaño — no podemos detectar ni recortar su tamaño real.</div>
         </div>
 
         <div class="field">
@@ -326,6 +339,18 @@ input,textarea{font-family:inherit;}
   </div>
 
   <p class="footer-note">LINKMANAGER OG · BACKEND EN NETLIFY FUNCTIONS + BLOBS</p>
+</div>
+
+<div class="modal-overlay" id="cropModal">
+  <div class="modal-box">
+    <h3>Recorta la imagen a 1200×630</h3>
+    <p class="modal-hint">Ajusta el encuadre — el resultado siempre se sube en el tamaño exacto que espera Facebook.</p>
+    <div class="crop-area"><img id="cropImg" alt=""></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="cancelCrop()">Cancelar</button>
+      <button class="btn btn-accent" id="cropConfirmBtn" onclick="confirmCrop()">Recortar y subir</button>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -476,21 +501,64 @@ function readImageDimensions(file){
   });
 }
 
-async function onImageFileSelected(evt){
+/* ---------- recortador (Cropper.js) ---------- */
+let cropper = null;
+let pendingFileType = 'image/jpeg';
+
+function onImageFileSelected(evt){
   const file = evt.target.files[0];
+  evt.target.value = '';
   if(!file) return;
   const allowed = ['image/jpeg','image/png','image/webp','image/gif'];
-  if(!allowed.includes(file.type)){ toast('Formato no soportado. Usa JPG, PNG, WEBP o GIF.'); evt.target.value=''; return; }
-  if(file.size > 4*1024*1024){ toast('La imagen pesa más de 4 MB. Usa una versión más ligera.'); evt.target.value=''; return; }
+  if(!allowed.includes(file.type)){ toast('Formato no soportado. Usa JPG, PNG, WEBP o GIF.'); return; }
+  if(file.size > 15*1024*1024){ toast('La imagen original pesa más de 15 MB. Usa una versión más ligera.'); return; }
 
+  pendingFileType = (file.type === 'image/png') ? 'image/png' : 'image/jpeg';
+  const cropImg = $('cropImg');
+  cropImg.src = URL.createObjectURL(file);
+  $('cropModal').style.display = 'flex';
+
+  cropImg.onload = () => {
+    if(cropper){ cropper.destroy(); }
+    cropper = new Cropper(cropImg, {
+      aspectRatio: 1200 / 630,
+      viewMode: 1,
+      autoCropArea: 1,
+      background: false,
+      movable: true,
+      zoomable: true,
+      responsive: true
+    });
+  };
+}
+
+function cancelCrop(){
+  if(cropper){ cropper.destroy(); cropper = null; }
+  $('cropModal').style.display = 'none';
+}
+
+function confirmCrop(){
+  if(!cropper) return;
+  const canvas = cropper.getCroppedCanvas({ width: 1200, height: 630, imageSmoothingQuality: 'high' });
+  const btn = $('cropConfirmBtn');
+  const original = btn.textContent;
+  btn.disabled = true; btn.innerHTML = '<span class="spin-sm"></span> Subiendo…';
+
+  canvas.toBlob(async (blob) => {
+    await uploadImageBlob(blob, pendingFileType);
+    btn.disabled = false; btn.textContent = original;
+    cancelCrop();
+  }, pendingFileType, 0.9);
+}
+
+async function uploadImageBlob(blob, mime){
   $('imgUploadStatus').innerHTML = '<span class="spin-sm"></span> Subiendo…';
-
   try{
-    const dims = await readImageDimensions(file);
+    const ext = mime === 'image/png' ? 'png' : 'jpg';
     const form = new FormData();
-    form.append('image', file);
-    form.append('width', dims.width);
-    form.append('height', dims.height);
+    form.append('image', blob, `recorte.${ext}`);
+    form.append('width', 1200);
+    form.append('height', 630);
 
     const res = await fetch('/api/upload-image', {
       method: 'POST',
@@ -510,8 +578,6 @@ async function onImageFileSelected(evt){
   }catch(e){
     $('imgUploadStatus').textContent = '';
     toast(e.message || 'No se pudo subir la imagen.');
-  }finally{
-    evt.target.value = '';
   }
 }
 
