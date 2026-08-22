@@ -295,6 +295,8 @@ input,textarea{font-family:inherit;}
           <p>Usa "Exportar respaldo (.json)" periódicamente. Si algún día migras de sitio, puedes volver a crear los enlaces desde ese respaldo.</p>
           <h3>Sobre la contraseña</h3>
           <p>Se valida en el servidor contra la variable <code>ADMIN_PASSWORD</code> de Netlify — cámbiala ahí cuando quieras, sin tocar el código.</p>
+          <h3>WhatsApp no tiene "volver a extraer"</h3>
+          <p>A diferencia de Facebook, WhatsApp no ofrece una herramienta pública para forzar una nueva lectura de un enlace ya compartido antes. Si probaste un enlace y no mostró vista previa (o quedó con una imagen vieja), lo más confiable es agregarle algo al final la próxima vez que lo compartas, como <code>?v=2</code> — sigue llevando al mismo destino, pero para WhatsApp es una URL nueva sin caché.</p>
         </div>
       </details>
 
@@ -515,11 +517,12 @@ function onImageFileSelected(evt){
 
   pendingFileType = (file.type === 'image/png') ? 'image/png' : 'image/jpeg';
   const cropImg = $('cropImg');
-  cropImg.src = URL.createObjectURL(file);
-  $('cropModal').style.display = 'flex';
+  if(cropper){ cropper.destroy(); cropper = null; }
 
+  // Mostrar el modal y conectar el evento ANTES de asignar la imagen,
+  // para no perder el "load" si carga de inmediato (URLs blob: locales).
+  $('cropModal').style.display = 'flex';
   cropImg.onload = () => {
-    if(cropper){ cropper.destroy(); }
     cropper = new Cropper(cropImg, {
       aspectRatio: 1200 / 630,
       viewMode: 1,
@@ -530,6 +533,7 @@ function onImageFileSelected(evt){
       responsive: true
     });
   };
+  cropImg.src = URL.createObjectURL(file);
 }
 
 function cancelCrop(){
@@ -538,17 +542,35 @@ function cancelCrop(){
 }
 
 function confirmCrop(){
-  if(!cropper) return;
+  if(!cropper){ toast('El recortador no cargó todavía. Espera un momento e inténtalo de nuevo.'); return; }
   const canvas = cropper.getCroppedCanvas({ width: 1200, height: 630, imageSmoothingQuality: 'high' });
   const btn = $('cropConfirmBtn');
   const original = btn.textContent;
   btn.disabled = true; btn.innerHTML = '<span class="spin-sm"></span> Subiendo…';
 
-  canvas.toBlob(async (blob) => {
+  canvasToBlobUnderLimit(canvas, pendingFileType, 300 * 1024).then(async (blob) => {
+    if(!blob){ toast('No se pudo procesar la imagen.'); btn.disabled = false; btn.textContent = original; return; }
     await uploadImageBlob(blob, pendingFileType);
     btn.disabled = false; btn.textContent = original;
     cancelCrop();
-  }, pendingFileType, 0.9);
+  });
+}
+
+/* WhatsApp suele descartar imágenes pesadas para la vista previa (recomendado < 300 KB).
+   Si el recorte queda por encima, se reintenta con menor calidad hasta caber, o hasta un mínimo razonable. */
+function canvasToBlobUnderLimit(canvas, mime, maxBytes){
+  return new Promise((resolve) => {
+    if(mime === 'image/png'){ canvas.toBlob(resolve, mime); return; } // PNG no soporta calidad ajustable
+    let quality = 0.9;
+    const attempt = () => {
+      canvas.toBlob((blob) => {
+        if(!blob){ resolve(null); return; }
+        if(blob.size <= maxBytes || quality <= 0.4){ resolve(blob); }
+        else { quality -= 0.15; attempt(); }
+      }, mime, quality);
+    };
+    attempt();
+  });
 }
 
 async function uploadImageBlob(blob, mime){
