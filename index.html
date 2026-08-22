@@ -515,7 +515,7 @@ function onImageFileSelected(evt){
   if(!allowed.includes(file.type)){ toast('Formato no soportado. Usa JPG, PNG, WEBP o GIF.'); return; }
   if(file.size > 15*1024*1024){ toast('La imagen original pesa más de 15 MB. Usa una versión más ligera.'); return; }
 
-  pendingFileType = (file.type === 'image/png') ? 'image/png' : 'image/jpeg';
+  pendingFileType = 'image/jpeg';
   const cropImg = $('cropImg');
   if(cropper){ cropper.destroy(); cropper = null; }
 
@@ -557,10 +557,10 @@ function confirmCrop(){
 }
 
 /* WhatsApp suele descartar imágenes pesadas para la vista previa (recomendado < 300 KB).
-   Si el recorte queda por encima, se reintenta con menor calidad hasta caber, o hasta un mínimo razonable. */
+   Siempre se sube como JPG (permite ajustar calidad); si el recorte queda por encima,
+   se reintenta con menor calidad hasta caber, o hasta un mínimo razonable. */
 function canvasToBlobUnderLimit(canvas, mime, maxBytes){
   return new Promise((resolve) => {
-    if(mime === 'image/png'){ canvas.toBlob(resolve, mime); return; } // PNG no soporta calidad ajustable
     let quality = 0.9;
     const attempt = () => {
       canvas.toBlob((blob) => {
