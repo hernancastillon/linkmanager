@@ -262,8 +262,12 @@ input,textarea{font-family:inherit;}
       </div>
 
       <div class="section-title"><span class="num">02/</span> Enlaces publicados</div>
-      <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
         <button class="btn btn-sm" onclick="exportBackup()">Exportar respaldo (.json)</button>
+        <label class="btn btn-sm" style="cursor:pointer;">
+          Importar respaldo
+          <input type="file" accept="application/json" style="display:none;" onchange="importBackup(event)">
+        </label>
         <button class="btn btn-sm" onclick="loadLinks()">Actualizar lista</button>
       </div>
       <div id="linkList"><div class="empty-state"><div class="glyph">◌</div><p>Cargando enlaces…</p></div></div>
@@ -653,6 +657,47 @@ function exportBackup(){
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
   toast('Respaldo exportado.');
+}
+
+async function importBackup(evt){
+  const file = evt.target.files[0];
+  evt.target.value = '';
+  if(!file) return;
+
+  let data;
+  try{
+    data = JSON.parse(await file.text());
+  }catch(e){
+    toast('El archivo no es un JSON válido.');
+    return;
+  }
+  if(!Array.isArray(data)){ toast('El respaldo debe ser una lista de enlaces.'); return; }
+
+  let creados = 0, omitidos = 0, fallidos = 0;
+  for(const item of data){
+    if(!item.slug || !item.titulo || !item.destino){ omitidos++; continue; }
+    try{
+      await api('/api/links', {
+        method: 'POST',
+        body: JSON.stringify({
+          titulo: item.titulo,
+          slug: item.slug,
+          destino: item.destino,
+          descripcion: item.descripcion || '',
+          imagen: item.imagen || '',
+          imagenAncho: item.imagenAncho || null,
+          imagenAlto: item.imagenAlto || null,
+          sitio: item.sitio || ''
+        })
+      });
+      creados++;
+    }catch(e){
+      if(e.message && e.message.toLowerCase().includes('ya existe')) omitidos++;
+      else fallidos++;
+    }
+  }
+  toast(`Importados: ${creados} · Ya existían: ${omitidos} · Fallidos: ${fallidos}`);
+  await loadLinks();
 }
 
 /* ---------- eventos ---------- */
