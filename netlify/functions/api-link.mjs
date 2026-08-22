@@ -27,6 +27,8 @@ export default async (req, context) => {
       destino: data.destino ?? existing.destino,
       descripcion: data.descripcion ?? existing.descripcion,
       imagen: data.imagen ?? existing.imagen,
+      imagenAncho: data.imagenAncho !== undefined ? (data.imagenAncho ? Number(data.imagenAncho) : null) : existing.imagenAncho,
+      imagenAlto: data.imagenAlto !== undefined ? (data.imagenAlto ? Number(data.imagenAlto) : null) : existing.imagenAlto,
       sitio: data.sitio ?? existing.sitio,
       actualizado: Date.now()
     };

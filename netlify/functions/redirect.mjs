@@ -33,8 +33,8 @@ export default async (req, context) => {
 <meta property="og:title" content="${esc(link.titulo)}">
 <meta property="og:description" content="${esc(link.descripcion)}">
 <meta property="og:image" content="${esc(link.imagen)}">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
+<meta property="og:image:width" content="${link.imagenAncho || 1200}">
+<meta property="og:image:height" content="${link.imagenAlto || 630}">
 <meta property="og:url" content="${esc(shortUrl)}">
 <meta property="og:site_name" content="${esc(siteName)}">
 

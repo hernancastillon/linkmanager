@@ -38,6 +38,8 @@ export default async (req) => {
       destino: data.destino,
       descripcion: data.descripcion || "",
       imagen: data.imagen || "",
+      imagenAncho: data.imagenAncho ? Number(data.imagenAncho) : null,
+      imagenAlto: data.imagenAlto ? Number(data.imagenAlto) : null,
       sitio: data.sitio || "",
       visitas: 0,
       creado: Date.now()
