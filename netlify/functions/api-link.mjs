@@ -40,11 +40,33 @@ export default async (req, context) => {
     const existing = await store.get(slug, { type: "json" });
     if (!existing) return json({ error: "Ese enlace no existe" }, 404);
     await store.delete(slug);
+
+    // Si la imagen está alojada en este mismo sitio y ningún otro enlace la usa, bórrala también.
+    const imageKey = ownImageKey(existing.imagen);
+    if (imageKey) {
+      const { blobs } = await store.list();
+      const remaining = await Promise.all(blobs.map((b) => store.get(b.key, { type: "json" })));
+      const stillUsed = remaining.some((l) => l && l.imagen === existing.imagen);
+      if (!stillUsed) {
+        await getStore("images").delete(imageKey);
+      }
+    }
+
     return json({ ok: true });
   }
 
   return json({ error: "Método no permitido" }, 405);
 };
+
+function ownImageKey(url) {
+  if (!url) return null;
+  try {
+    const match = new URL(url).pathname.match(/^\/img\/(.+)$/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
 
 function authorized(req) {
   const pass = req.headers.get("x-admin-password");
