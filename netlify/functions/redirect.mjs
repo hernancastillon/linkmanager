@@ -35,6 +35,8 @@ export default async (req, context) => {
 <meta property="og:image" content="${esc(link.imagen)}">
 <meta property="og:image:width" content="${link.imagenAncho || 1200}">
 <meta property="og:image:height" content="${link.imagenAlto || 630}">
+<meta property="og:image:type" content="${mimeFromPath(link.imagen)}">
+<meta property="og:image:secure_url" content="${esc(link.imagen)}">
 <meta property="og:url" content="${esc(shortUrl)}">
 <meta property="og:site_name" content="${esc(siteName)}">
 
@@ -74,6 +76,11 @@ function esc(str) {
     /[&<>"']/g,
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
   );
+}
+
+function mimeFromPath(path) {
+  const ext = String(path || "").split(".").pop().toLowerCase();
+  return { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif" }[ext] || "image/jpeg";
 }
 
 function pageNotFound(slug) {
