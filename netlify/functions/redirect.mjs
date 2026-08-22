@@ -8,7 +8,10 @@ export default async (req, context) => {
   if (!link) {
     return new Response(pageNotFound(slug), {
       status: 404,
-      headers: { "content-type": "text/html; charset=utf-8" }
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store, must-revalidate"
+      }
     });
   }
 
@@ -67,7 +70,10 @@ export default async (req, context) => {
 </html>`;
 
   return new Response(html, {
-    headers: { "content-type": "text/html; charset=utf-8" }
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store, must-revalidate"
+    }
   });
 };
 
