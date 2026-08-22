@@ -237,9 +237,17 @@ input,textarea{font-family:inherit;}
         </div>
 
         <div class="field">
-          <label for="fImagen">Imagen (og:image) — URL pública</label>
-          <input type="url" id="fImagen" placeholder="https://ejemplo.com/imagen.jpg" oninput="renderPreview()">
-          <div class="hint">Sube la imagen a donde ya alojas tus medios y pega el enlace directo. Usa una imagen de exactamente 1200×630px — la página ya declara ese tamaño para que Facebook no la rechace por no conocer sus dimensiones.</div>
+          <label for="fImagenFile">Imagen (og:image)</label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+            <label class="btn btn-sm" style="cursor:pointer;">
+              Subir imagen
+              <input type="file" id="fImagenFile" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none;" onchange="onImageFileSelected(event)">
+            </label>
+            <span id="imgUploadStatus" style="font-size:12px;color:var(--text-faint);"></span>
+            <button type="button" class="btn btn-sm btn-ghost" id="removeImgBtn" style="display:none;" onclick="removeImage()">Quitar</button>
+          </div>
+          <input type="url" id="fImagen" placeholder="…o pega una URL de imagen que ya tengas en otro lugar" oninput="onImagenUrlInput()">
+          <div class="hint">Subir el archivo la aloja en tu propio sitio y detecta el tamaño real automáticamente. Si en cambio pegas una URL externa, usa una imagen de 1200×630px — no podemos detectar su tamaño real.</div>
         </div>
 
         <div class="field">
@@ -323,6 +331,8 @@ const SS_PW = 'lmog_pw';
 let links = [];
 let editingSlug = null;
 let slugManuallyEdited = false;
+let uploadedImgWidth = null;
+let uploadedImgHeight = null;
 
 function $(id){ return document.getElementById(id); }
 function toast(msg){
@@ -414,6 +424,8 @@ function getFormData(){
     destino: $('fDestino').value.trim(),
     descripcion: $('fDescripcion').value.trim(),
     imagen: $('fImagen').value.trim(),
+    imagenAncho: uploadedImgWidth,
+    imagenAlto: uploadedImgHeight,
     sitio: $('fSitio').value.trim()
   };
 }
@@ -424,12 +436,80 @@ function clearForm(){
   $('fSlug').disabled = false;
   $('slugHint').textContent = 'Se autogenera desde el título. Puedes editarlo — solo minúsculas, números y guiones.';
   slugManuallyEdited = false; editingSlug = null;
+  uploadedImgWidth = null; uploadedImgHeight = null;
+  $('imgUploadStatus').textContent = '';
+  $('removeImgBtn').style.display = 'none';
   $('formHeading').textContent = 'Crear enlace';
   $('saveBtn').textContent = 'Publicar enlace';
   $('cancelEditBtn').style.display = 'none';
   renderPreview();
 }
 function cancelEdit(){ clearForm(); }
+
+/* ---------- imagen: subir o pegar URL ---------- */
+function onImagenUrlInput(){
+  uploadedImgWidth = null; uploadedImgHeight = null;
+  $('imgUploadStatus').textContent = '';
+  $('removeImgBtn').style.display = $('fImagen').value.trim() ? 'inline-flex' : 'none';
+  renderPreview();
+}
+
+function removeImage(){
+  $('fImagen').value = '';
+  uploadedImgWidth = null; uploadedImgHeight = null;
+  $('imgUploadStatus').textContent = '';
+  $('removeImgBtn').style.display = 'none';
+  renderPreview();
+}
+
+function readImageDimensions(file){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => { resolve({ width: img.naturalWidth, height: img.naturalHeight }); URL.revokeObjectURL(url); };
+    img.onerror = () => { reject(new Error('No se pudo leer la imagen.')); URL.revokeObjectURL(url); };
+    img.src = url;
+  });
+}
+
+async function onImageFileSelected(evt){
+  const file = evt.target.files[0];
+  if(!file) return;
+  const allowed = ['image/jpeg','image/png','image/webp','image/gif'];
+  if(!allowed.includes(file.type)){ toast('Formato no soportado. Usa JPG, PNG, WEBP o GIF.'); evt.target.value=''; return; }
+  if(file.size > 4*1024*1024){ toast('La imagen pesa más de 4 MB. Usa una versión más ligera.'); evt.target.value=''; return; }
+
+  $('imgUploadStatus').innerHTML = '<span class="spin-sm"></span> Subiendo…';
+
+  try{
+    const dims = await readImageDimensions(file);
+    const form = new FormData();
+    form.append('image', file);
+    form.append('width', dims.width);
+    form.append('height', dims.height);
+
+    const res = await fetch('/api/upload-image', {
+      method: 'POST',
+      headers: { 'x-admin-password': pw() },
+      body: form
+    });
+    if(res.status === 401){ sessionStorage.removeItem(SS_PW); boot(); return; }
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || 'No se pudo subir la imagen.');
+
+    $('fImagen').value = window.location.origin + data.path;
+    uploadedImgWidth = data.width;
+    uploadedImgHeight = data.height;
+    $('imgUploadStatus').textContent = `Subida ✓ (${data.width}×${data.height}px)`;
+    $('removeImgBtn').style.display = 'inline-flex';
+    renderPreview();
+  }catch(e){
+    $('imgUploadStatus').textContent = '';
+    toast(e.message || 'No se pudo subir la imagen.');
+  }finally{
+    evt.target.value = '';
+  }
+}
 
 /* ---------- vista previa ---------- */
 function renderPreview(){
@@ -490,6 +570,10 @@ function editLink(slug){
   $('fDescripcion').value = l.descripcion;
   $('fImagen').value = l.imagen;
   $('fSitio').value = l.sitio || '';
+  uploadedImgWidth = l.imagenAncho || null;
+  uploadedImgHeight = l.imagenAlto || null;
+  $('imgUploadStatus').textContent = (l.imagenAncho && l.imagenAlto) ? `Actual: ${l.imagenAncho}×${l.imagenAlto}px` : '';
+  $('removeImgBtn').style.display = l.imagen ? 'inline-flex' : 'none';
   slugManuallyEdited = true;
   onTituloInput(); onDescInput();
   $('formHeading').textContent = 'Editar enlace';
